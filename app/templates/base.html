@@ -18,9 +18,6 @@
                     <a class="nav-link" href="{{ url_for('web.dashboard') }}">Главная</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('web.create_address') }}">Создать адрес</a>
-                </li>
-                <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('web.join_address') }}">Присоединиться</a>
                 </li>
                 <li class="nav-item">
@@ -31,9 +28,14 @@
 
             <ul class="navbar-nav">
                 {% if session.get("user_id") %}
-                <li class="nav-item">
-                    <a class="nav-link text-danger" href="{{ url_for('web.logout') }}">Выход</a>
-                </li>
+                    {% if session.get("user_role") == "ADMIN" %}
+                    <li class="nav-item">
+                        <a class="nav-link text-warning" href="{{ url_for('web.admin_dashboard') }}">Админ-панель</a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link text-danger" href="{{ url_for('web.logout') }}">Выход</a>
+                    </li>
                 {% else %}
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('web.login') }}">Вход</a>

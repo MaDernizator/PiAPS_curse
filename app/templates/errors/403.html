@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Доступ запрещён{% endblock %}
+{% block content %}
+<h1 class="text-warning">Ошибка 403</h1>
+<p>У вас нет прав для доступа к этой странице.</p>
+<a href="{{ url_for('web.dashboard') }}" class="btn btn-secondary">На главную</a>
+{% endblock %}

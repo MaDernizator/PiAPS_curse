@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h2>Создать адрес</h2>
+  <form method="POST" action="{{ url_for('web.admin_create_address') }}">
+    <input name="street" placeholder="Улица" required><br>
+    <input name="building" placeholder="Дом" required><br>
+    <input name="unit" placeholder="Квартира" required><br>
+    <input name="code" placeholder="Уникальный код (owner_code)" required><br>
+    <button type="submit">Создать</button>
+  </form>
+{% endblock %}

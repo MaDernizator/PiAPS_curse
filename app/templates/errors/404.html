@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Страница не найдена{% endblock %}
+{% block content %}
+<h1 class="text-danger">Ошибка 404</h1>
+<p>Страница не найдена 😕</p>
+<a href="{{ url_for('web.dashboard') }}" class="btn btn-secondary">На главную</a>
+{% endblock %}
