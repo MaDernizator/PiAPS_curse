@@ -49,10 +49,9 @@ def register():
         hashed = generate_password_hash(password)
 
         try:
-            with db.session.begin():
-                user = User(name=name, email=email, password=hashed)
-                db.session.add(user)
-
+            user = User(name=name, email=email, password=hashed)
+            db.session.add(user)
+            db.session.commit()
             logging.info(f"Зарегистрирован новый пользователь: {email}")
             flash("Регистрация прошла успешно, войдите в систему", "success")
             return redirect(url_for("web.login"))
@@ -60,6 +59,7 @@ def register():
         except SQLAlchemyError as e:
             logging.error(f"Ошибка при регистрации: {str(e)}")
             flash("Ошибка при регистрации", "danger")
+            db.session.rollback()
             return redirect(url_for("web.register"))
 
     return render_template("register.html")
@@ -101,7 +101,7 @@ def join_address():
         return redirect(url_for("web.login"))
 
     if request.method == "POST":
-        code = request.form["owner_code"]
+        code = request.form["code"]
         from app.models.address import Address
         from app.models.user_address import UserAddress, ResidentRole
         from app.main.extensions import db
@@ -113,7 +113,7 @@ def join_address():
                 flash("Адрес с таким кодом не найден", "danger")
                 return redirect(url_for("web.join_address"))
 
-            if address.user_addresses:
+            if address.residents:
                 flash("Адрес уже привязан к другому владельцу", "danger")
                 return redirect(url_for("web.join_address"))
 
@@ -125,9 +125,14 @@ def join_address():
                 role=ResidentRole.OWNER
             )
 
-            with db.session.begin():
+            try:
                 db.session.add(address)
                 db.session.add(user_address)
+                db.session.commit()
+            except SQLAlchemyError as e:
+                db.session.rollback()
+                logging.error(f"Ошибка при присоединении к адресу: {str(e)}")
+                flash("Произошла ошибка при присоединении", "danger")
 
             flash("Вы успешно стали владельцем адреса", "success")
             logging.info(f"Пользователь {session['user_id']} стал владельцем адреса {address.id}")
@@ -248,13 +253,14 @@ def invite_user(address_id):
             used=False
         )
 
-        try:
-            with db.session.begin():
-                db.session.add(invitation)
 
+        try:
+            db.session.add(invitation)
+            db.session.commit()
             logging.info(f"Пользователь {email} приглашён к адресу {address.id}")
             flash("Приглашение отправлено", "success")
         except SQLAlchemyError as e:
+            db.session.rollback()
             logging.error(f"Ошибка при отправке приглашения: {str(e)}")
             flash("Не удалось отправить приглашение", "danger")
 
@@ -332,18 +338,19 @@ def admin_create_address():
         )
 
         try:
-            with db.session.begin():
-                db.session.add(address)
+            db.session.add(address)
+            db.session.commit()
 
             flash("Адрес создан", "success")
             logging.info(f"Админ создал адрес: {street}, {building}, {unit}, код: {code}")
         except SQLAlchemyError as e:
+            db.session.rollback()
             logging.error(f"Ошибка создания адреса: {str(e)}")
             flash("Не удалось создать адрес", "danger")
 
-        return redirect(url_for("web.admin_create_address"))
+        return redirect(url_for("web.dashboard"))
 
-    return render_template("admin_create_address.html")
+    return render_template("admin_dashboard.html")
 
 
 @web_bp.route("/admin", methods=["GET"])
