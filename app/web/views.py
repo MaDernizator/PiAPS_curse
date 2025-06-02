@@ -361,3 +361,6 @@ def admin_dashboard():
 
     addresses = Address.query.all()  # Пример: показать все адреса
     return render_template("admin_dashboard.html", addresses=addresses)
+
+#TODO отклонить приглошение
+#TODO блокировка по условию
