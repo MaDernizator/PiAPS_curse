@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Мои приглашения</h2>
+
+{% if invites %}
+  <ul class="list-group">
+    {% for invite in invites %}
+      <li class="list-group-item">
+        Приглашение в адрес ID {{ invite.address_id }} <br>
+        Код: <strong>{{ invite.code }}</strong>
+        <form method="post" action="{{ url_for('web.accept_invitation') }}" class="mt-2">
+          <input type="hidden" name="code" value="{{ invite.code }}">
+          <button class="btn btn-success btn-sm">Принять</button>
+        </form>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p>Нет активных приглашений.</p>
+{% endif %}
+
+{% endblock %}

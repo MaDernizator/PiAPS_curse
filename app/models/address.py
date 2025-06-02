@@ -13,3 +13,4 @@ class Address(db.Model):
     residents = relationship("UserAddress", back_populates="address", cascade="all, delete-orphan")
     invitations = db.relationship("Invitation", back_populates="address", cascade="all, delete-orphan")
 
+

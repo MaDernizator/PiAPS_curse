@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Принять приглашение</h2>
+<form method="post">
+  <div class="mb-3">
+    <label>Код приглашения:</label>
+    <input type="text" name="code" class="form-control" required>
+  </div>
+  <button class="btn btn-success">Принять</button>
+</form>
+{% endblock %}

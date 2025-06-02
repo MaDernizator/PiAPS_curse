@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Создание адреса{% endblock %}
+{% block content %}
+<h2>Создать адрес</h2>
+<form method="POST">
+  <input name="street" class="form-control mb-2" placeholder="Улица">
+  <input name="building" class="form-control mb-2" placeholder="Дом">
+  <input name="unit" class="form-control mb-2" placeholder="Квартира">
+  <button class="btn btn-success">Создать</button>
+</form>
+<a href="{{ url_for('web.dashboard') }}">← Назад</a>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Ваши адреса{% endblock %}
+{% block content %}
+<h2>Ваши адреса</h2>
+<ul class="list-group mb-3">
+    {% for ua in addresses %}
+    <li class="list-group-item">
+        <strong>{{ ua.address.street }}, {{ ua.address.building_number }}-{{ ua.address.unit_number }}</strong>
+        <br>Роль: {{ ua.role.value }}
+        <br>
+        <a href="{{ url_for('web.address_residents', address_id=ua.address.id) }}"
+           class="btn btn-sm btn-outline-secondary mt-2">
+            Жильцы
+        </a>
+        {% if ua.role.name in ['OWNER', 'RESIDENT'] %}
+        <a href="{{ url_for('web.invite_user', address_id=ua.address.id) }}" class="btn btn-sm btn-primary mt-2">
+            Пригласить жильца
+        </a>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+<a href="{{ url_for('web.create_address') }}" class="btn btn-primary me-2">Создать адрес</a>
+<a href="{{ url_for('web.join_address') }}" class="btn btn-secondary">Присоединиться по коду</a>
+{% endblock %}

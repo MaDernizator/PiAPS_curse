@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Жильцы адреса{% endblock %}
+{% block content %}
+<h2>Жильцы</h2>
+
+<p><strong>Адрес:</strong> {{ address.street }}, {{ address.building_number }}-{{ address.unit_number }}</p>
+
+<table class="table table-bordered">
+  <thead>
+    <tr>
+      <th>Имя</th>
+      <th>Email</th>
+      <th>Роль</th>
+      {% if user_role == 'OWNER' %}
+      <th>Действия</th>
+      {% endif %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in residents %}
+    <tr>
+      <td>{{ r.user.name }}</td>
+      <td>{{ r.user.email }}</td>
+      <td>{{ r.role.value }}</td>
+      {% if user_role == 'OWNER' %}
+      <td>
+        {% if r.user.id != current_user_id %}
+        <form method="POST" action="{{ url_for('web.update_resident_role', resident_id=r.id) }}" class="d-inline">
+          <select name="role" class="form-select d-inline w-auto">
+            <option value="OWNER" {% if r.role.name == "OWNER" %}selected{% endif %}>OWNER</option>
+            <option value="RESIDENT" {% if r.role.name == "RESIDENT" %}selected{% endif %}>RESIDENT</option>
+            <option value="GUEST" {% if r.role.name == "GUEST" %}selected{% endif %}>GUEST</option>
+          </select>
+          <button class="btn btn-sm btn-primary">Сменить</button>
+        </form>
+        <form method="POST" action="{{ url_for('web.remove_resident', resident_id=r.id) }}" class="d-inline ms-2">
+          <button class="btn btn-sm btn-danger">Удалить</button>
+        </form>
+        {% endif %}
+      </td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<a href="{{ url_for('web.dashboard') }}">← Назад</a>
+{% endblock %}
