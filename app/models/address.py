@@ -8,6 +8,8 @@ class Address(db.Model):
     street = db.Column(db.String(120), nullable=False)
     building_number = db.Column(db.String(20), nullable=False)
     unit_number = db.Column(db.String(20), nullable=False)
+    owner_code = db.Column(db.String(16), unique=True, nullable=False)
 
     residents = relationship("UserAddress", back_populates="address", cascade="all, delete-orphan")
-    invitations = relationship("Invitation", back_populates="address", cascade="all, delete-orphan")
+    invitations = db.relationship("Invitation", back_populates="address", cascade="all, delete-orphan")
+
