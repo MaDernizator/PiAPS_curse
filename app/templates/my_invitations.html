@@ -5,13 +5,19 @@
 {% if invites %}
   <ul class="list-group">
     {% for invite in invites %}
-      <li class="list-group-item">
-        Приглашение в адрес ID {{ invite.address_id }} <br>
-        Код: <strong>{{ invite.code }}</strong>
-        <form method="post" action="{{ url_for('web.accept_invitation') }}" class="mt-2">
-          <input type="hidden" name="code" value="{{ invite.code }}">
-          <button class="btn btn-success btn-sm">Принять</button>
-        </form>
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        Приглашение в адрес ID {{ invite.address_id }}
+
+        <div class="btn-group" role="group">
+          <form method="post" action="{{ url_for('web.accept_invitation') }}">
+            <input type="hidden" name="code" value="{{ invite.code }}">
+            <button class="btn btn-success btn-sm">Принять</button>
+          </form>
+
+          <form method="post" action="{{ url_for('web.decline_invitation', id=invite.id) }}">
+            <button class="btn btn-danger btn-sm ms-2">Отклонить</button>
+          </form>
+        </div>
       </li>
     {% endfor %}
   </ul>

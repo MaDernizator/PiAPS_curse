@@ -2,7 +2,7 @@ from datetime import datetime
 
 from flask import Blueprint, render_template, redirect, url_for, request, session, flash
 from sqlalchemy.exc import SQLAlchemyError
-
+import uuid
 
 from app.models.user import User
 from app.models.address import Address
@@ -19,6 +19,7 @@ web_bp = Blueprint("web", __name__)
 
 import logging
 
+
 # logging.basicConfig(
 #     filename='app.log',
 #     level=logging.INFO,
@@ -28,6 +29,7 @@ import logging
 def is_admin():
     from app.models.user import UserRole
     return session.get("user_role") == UserRole.ADMIN.value
+
 
 @web_bp.route("/")
 def index():
@@ -91,10 +93,6 @@ def dashboard():
     return render_template("dashboard.html", addresses=addresses)
 
 
-import uuid  # 👈 добавляем вверху
-
-
-
 @web_bp.route("/join-address", methods=["GET", "POST"])
 def join_address():
     if "user_id" not in session:
@@ -146,6 +144,7 @@ def join_address():
 
     return render_template("join_address.html")
 
+
 @web_bp.route("/address/<int:address_id>/residents")
 def address_residents(address_id):
     if "user_id" not in session:
@@ -169,6 +168,7 @@ def address_residents(address_id):
         user_role=current_resident.role.name,
         current_user_id=current_user_id
     )
+
 
 @web_bp.route("/resident/<int:resident_id>/update-role", methods=["POST"])
 def update_resident_role(resident_id):
@@ -221,11 +221,13 @@ def remove_resident(resident_id):
     flash("Жилец удалён", "info")
     return redirect(url_for("web.address_residents", address_id=address_id))
 
+
 @web_bp.route("/logout")
 def logout():
     session.clear()
     flash("Вы вышли из системы", "info")
     return redirect(url_for("web.login"))
+
 
 @web_bp.route("/address/<int:address_id>/invite", methods=["GET", "POST"])
 def invite_user(address_id):
@@ -252,7 +254,6 @@ def invite_user(address_id):
             created_at=datetime.utcnow(),
             used=False
         )
-
 
         try:
             db.session.add(invitation)
@@ -294,7 +295,7 @@ def accept_invitation():
         ua = UserAddress(
             user_id=session["user_id"],
             address_id=invitation.address_id,
-            role=ResidentRole.RESIDENT
+            role=ResidentRole.GUEST
         )
         invitation.used = True
         db.session.add(ua)
@@ -304,6 +305,30 @@ def accept_invitation():
         return redirect(url_for("web.dashboard"))
 
     return render_template("accept_invitation.html")
+
+
+@web_bp.route("/invitation/<int:id>/decline", methods=["POST"])
+def decline_invitation(id):
+    if "user_id" not in session:
+        return redirect(url_for("web.login"))
+
+    invitation = Invitation.query.get_or_404(id)
+
+    user = User.query.get(session["user_id"])
+    if invitation.email != user.email:
+        abort(403)
+
+    try:
+        db.session.delete(invitation)
+        db.session.commit()
+        flash("Приглашение отклонено", "info")
+        logging.info(f"Пользователь {session['user_id']} отклонил приглашение {id}")
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        logging.error(f"Ошибка при отклонении приглашения {id}: {str(e)}")
+        flash("Ошибка при отклонении приглашения", "danger")
+
+    return redirect(url_for("web.my_invitations"))
 
 
 @web_bp.route("/my-invitations")
@@ -362,5 +387,4 @@ def admin_dashboard():
     addresses = Address.query.all()  # Пример: показать все адреса
     return render_template("admin_dashboard.html", addresses=addresses)
 
-#TODO отклонить приглошение
-#TODO блокировка по условию
+# TODO отклонить приглошение
