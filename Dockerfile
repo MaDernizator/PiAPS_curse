@@ -14,6 +14,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Копируем остальной проект
 COPY . .
 
+RUN chmod +x entrypoint.sh
+
 # Переменные окружения
 ENV FLASK_APP=app
 ENV FLASK_RUN_HOST=0.0.0.0
