@@ -1,0 +1,32 @@
+version: '3.9'
+
+services:
+  web:
+    build: .
+    command: ["sh", "./entrypoint.sh"]
+    container_name: flask_web
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_APP=app
+      - FLASK_ENV=development
+      - FLASK_RUN_PORT=5000
+      - DATABASE_URL=postgresql://piaps:secret@db:5432/piaps
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15
+    container_name: flask_db
+    restart: always
+    environment:
+      POSTGRES_USER: piaps
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: piaps
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

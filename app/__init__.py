@@ -6,6 +6,7 @@ from app.config import Config
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+from app.commands import create_superuser
 
 
 def configure_logging(app):
@@ -21,6 +22,7 @@ def configure_logging(app):
     app.logger.addHandler(file_handler)
     app.logger.setLevel(logging.INFO)
     app.logger.info('Logging initialized')
+
 
 def create_app():
     app = Flask(__name__)
@@ -39,5 +41,7 @@ def create_app():
 
     # Глобальные ошибки
     register_error_handlers(app)
+
+    app.cli.add_command(create_superuser)
 
     return app
