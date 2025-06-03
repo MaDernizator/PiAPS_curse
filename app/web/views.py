@@ -15,8 +15,7 @@ from app.models.invitation import Invitation
 from flask import abort
 from flask import current_app
 
-from app.forms import RegisterForm, LoginForm, AdminAddressForm, InviteForm
-
+from app.forms import RegisterForm, LoginForm, AdminAddressForm, InviteForm, ProfileForm
 
 web_bp = Blueprint("web", __name__)
 
@@ -379,3 +378,32 @@ def admin_dashboard():
 
 
 # TODO отклонить приглошение
+
+
+@web_bp.route("/profile", methods=["GET", "POST"])
+def profile():
+    if "user_id" not in session:
+        return redirect(url_for("web.login"))
+
+    user = User.query.get_or_404(session["user_id"])
+    form = ProfileForm(obj=user)
+
+    if form.validate_on_submit():
+        user.name = form.name.data
+        user.email = form.email.data
+
+        if form.password.data:
+            user.password = generate_password_hash(form.password.data)
+
+        try:
+            db.session.commit()
+            flash("Профиль обновлён", "success")
+            logging.info(f"Пользователь {user.id} обновил профиль")
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            flash("Ошибка при обновлении профиля", "danger")
+            logging.error(f"Ошибка обновления профиля: {str(e)}")
+
+        return redirect(url_for("web.profile"))
+
+    return render_template("profile.html", form=form)

@@ -1,7 +1,7 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.fields import EmailField
-from wtforms.validators import DataRequired, Email, Length
+from wtforms.validators import DataRequired, Email, Length, Optional
 
 
 class RegisterForm(FlaskForm):
@@ -28,3 +28,9 @@ class AdminAddressForm(FlaskForm):
 class InviteForm(FlaskForm):
     email = EmailField("Email жильца", validators=[DataRequired(), Email()])
     submit = SubmitField("Отправить приглашение")
+
+class ProfileForm(FlaskForm):
+    name = StringField("Имя", validators=[DataRequired(), Length(min=2, max=64)])
+    email = StringField("Email", validators=[DataRequired(), Email()])
+    password = PasswordField("Новый пароль (необязательно)", validators=[Optional(), Length(min=6)])
+    submit = SubmitField("Сохранить изменения")
