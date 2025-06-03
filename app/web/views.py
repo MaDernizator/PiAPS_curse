@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime
 
 from flask import Blueprint, render_template, redirect, url_for, request, session, flash
@@ -14,6 +15,8 @@ from app.models.enums import ResidentRole
 from app.models.invitation import Invitation
 from flask import abort
 from flask import current_app
+from app.utils.navigation import preserve_back_url
+
 
 from app.forms import RegisterForm, LoginForm, AdminAddressForm, InviteForm, ProfileForm
 
@@ -85,20 +88,12 @@ def login():
             session["token"] = token
             session["user_role"] = user.role.value
             current_app.logger.info(f"Пользователь вошёл: {user.email}")
-            return redirect(url_for("web.dashboard"))
+            return redirect(url_for("web.addresses"))
 
         flash("Неверные учетные данные", "danger")
 
     return render_template("login.html", form=form)
 
-
-@web_bp.route("/dashboard")
-def dashboard():
-    if "user_id" not in session:
-        return redirect(url_for("web.login"))
-    user_id = session["user_id"]
-    addresses = UserAddress.query.filter_by(user_id=user_id).all()
-    return render_template("dashboard.html", addresses=addresses)
 
 
 @web_bp.route("/join-address", methods=["GET", "POST"])
@@ -148,33 +143,30 @@ def join_address():
             logging.error(f"Ошибка при присоединении к адресу: {str(e)}")
             flash("Произошла ошибка при присоединении", "danger")
 
-        return redirect(url_for("web.dashboard"))
+        return redirect(url_for("web.addresses"))
 
     return render_template("join_address.html")
 
 
 @web_bp.route("/address/<int:address_id>/residents")
+@preserve_back_url()
 def address_residents(address_id):
     if "user_id" not in session:
         return redirect(url_for("web.login"))
 
     address = Address.query.get_or_404(address_id)
-
     residents = UserAddress.query.filter_by(address_id=address_id).join(User).all()
 
-    # получаем роль текущего пользователя
-    current_user_id = session["user_id"]
-    current_resident = UserAddress.query.filter_by(
-        user_id=current_user_id,
-        address_id=address_id
-    ).first()
+    user_id = session["user_id"]
+    full_control = has_full_control(user_id, address_id)
 
     return render_template(
         "address_residents.html",
         address=address,
         residents=residents,
-        user_role=current_resident.role.name,
-        current_user_id=current_user_id
+        user_role="ADMIN" if full_control else None,
+        current_user_id=user_id,
+        back_url=session.get("_back_url", url_for("web.addresses"))
     )
 
 
@@ -184,19 +176,13 @@ def update_resident_role(resident_id):
         return redirect(url_for("web.login"))
 
     ua = UserAddress.query.get_or_404(resident_id)
-    new_role = request.form["role"]
-
     address_id = ua.address_id
 
-    # проверка, что текущий пользователь — OWNER
-    current = UserAddress.query.filter_by(
-        user_id=session["user_id"],
-        address_id=address_id
-    ).first()
-    if not current or current.role.name != "OWNER":
+    if not has_full_control(session["user_id"], address_id):
         flash("Недостаточно прав", "danger")
-        return redirect(url_for("web.dashboard"))
+        return redirect(url_for("web.addresses"))
 
+    new_role = request.form["role"]
     ua.role = ResidentRole[new_role]
     db.session.commit()
 
@@ -212,20 +198,14 @@ def remove_resident(resident_id):
     ua = UserAddress.query.get_or_404(resident_id)
     address_id = ua.address_id
 
-    current = UserAddress.query.filter_by(
-        user_id=session["user_id"],
-        address_id=address_id
-    ).first()
-    if not current or current.role.name != "OWNER":
+    if not has_full_control(session["user_id"], address_id):
         flash("Недостаточно прав", "danger")
-        return redirect(url_for("web.dashboard"))
+        return redirect(url_for("web.addresses"))
 
-    if ua.user_id == session["user_id"]:
-        flash("Нельзя удалить самого себя", "warning")
-        return redirect(url_for("web.dashboard"))
-
+    # 💡 Разрешим даже удаление себя, если админ
     db.session.delete(ua)
     db.session.commit()
+
     flash("Жилец удалён", "info")
     return redirect(url_for("web.address_residents", address_id=address_id))
 
@@ -245,8 +225,10 @@ def invite_user(address_id):
     address = Address.query.get_or_404(address_id)
     current_user_id = session["user_id"]
 
-    ua = UserAddress.query.filter_by(user_id=current_user_id, address_id=address.id).first()
-    if not ua or ua.role not in [ResidentRole.OWNER, ResidentRole.RESIDENT]:
+    # 💡 Разрешить если админ
+    if not (is_admin() or UserAddress.query.filter_by(user_id=current_user_id, address_id=address.id)
+                                     .filter(UserAddress.role.in_([ResidentRole.OWNER, ResidentRole.RESIDENT]))
+                                     .first()):
         abort(403)
 
     form = InviteForm()
@@ -265,7 +247,7 @@ def invite_user(address_id):
             db.session.commit()
             logging.info(f"Пользователь {form.email.data} приглашён к адресу {address.id}")
             flash("Приглашение отправлено", "success")
-            return redirect(url_for("web.dashboard"))
+            return redirect(url_for("web.address_residents", address_id=address.id))
         except SQLAlchemyError as e:
             db.session.rollback()
             logging.error(f"Ошибка при приглашении: {str(e)}")
@@ -294,7 +276,7 @@ def accept_invitation():
         ).first()
         if exists:
             flash("Вы уже добавлены к этому адресу", "warning")
-            return redirect(url_for("web.dashboard"))
+            return redirect(url_for("web.addresses"))
 
         ua = UserAddress(
             user_id=session["user_id"],
@@ -306,7 +288,7 @@ def accept_invitation():
         db.session.commit()
 
         flash("Вы успешно присоединились", "success")
-        return redirect(url_for("web.dashboard"))
+        return redirect(url_for("web.addresses"))
 
     return render_template("accept_invitation.html")
 
@@ -352,7 +334,7 @@ def my_invitations():
 def admin_dashboard():
     if session.get("user_role") != "ADMIN":
         flash("Доступ запрещён", "danger")
-        return redirect(url_for("web.dashboard"))
+        return redirect(url_for("web.addresses"))
 
     form = AdminAddressForm()
     if form.validate_on_submit():
@@ -367,7 +349,7 @@ def admin_dashboard():
             db.session.commit()
             flash("Адрес создан", "success")
             logging.info(f"Админ создал адрес: {form.street.data}, {form.building.data}, {form.unit.data}")
-            return redirect(url_for("web.admin_dashboard"))
+            return redirect(url_for("web.addresses", mode="all"))
         except SQLAlchemyError as e:
             db.session.rollback()
             flash("Ошибка при создании адреса", "danger")
@@ -377,7 +359,36 @@ def admin_dashboard():
     return render_template("admin_dashboard.html", addresses=addresses, form=form)
 
 
-# TODO отклонить приглошение
+
+@web_bp.route("/admin/users")
+def admin_users():
+    if session.get("user_role") != "ADMIN":
+        flash("Доступ запрещён", "danger")
+        return redirect(url_for("web.addresses"))
+
+    users = User.query.all()
+    return render_template("admin_users.html", users=users)
+
+
+@web_bp.route("/admin/user/<int:user_id>/toggle-block")
+def admin_toggle_user_block(user_id):
+    if session.get("user_role") != "ADMIN":
+        flash("Доступ запрещён", "danger")
+        return redirect(url_for("web.addresses"))
+
+    user = User.query.get_or_404(user_id)
+    user.is_blocked = not getattr(user, "is_blocked", False)
+
+    try:
+        db.session.commit()
+        status = "заблокирован" if user.is_blocked else "разблокирован"
+        flash(f"Пользователь {user.email} {status}", "info")
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        logging.error(f"Ошибка блокировки: {str(e)}")
+        flash("Ошибка блокировки", "danger")
+
+    return redirect(url_for("web.admin_users"))
 
 
 @web_bp.route("/profile", methods=["GET", "POST"])
@@ -407,3 +418,102 @@ def profile():
         return redirect(url_for("web.profile"))
 
     return render_template("profile.html", form=form)
+
+
+@web_bp.route("/addresses")
+def addresses():
+    if "user_id" not in session:
+        return redirect(url_for("web.login"))
+
+    is_admin_mode = request.args.get("mode") == "all" and is_admin()
+
+    user_id = session["user_id"]
+    page = request.args.get("page", 1, type=int)
+    search = request.args.get("search", "").strip()
+    filter_type = request.args.get("filter", "all")
+
+    # Базовый запрос
+    if is_admin_mode:
+        query = Address.query
+    else:
+        user_addresses = UserAddress.query.filter_by(user_id=user_id).all()
+        address_ids = [ua.address_id for ua in user_addresses]
+        query = Address.query.filter(Address.id.in_(address_ids))
+
+    if search:
+        query = query.filter(
+            Address.street.ilike(f"%{search}%") |
+            Address.building_number.ilike(f"%{search}%") |
+            Address.unit_number.ilike(f"%{search}%")
+        )
+
+    addresses = query.all()
+
+    # Подсчёт ролей
+    from collections import defaultdict
+    role_counts = defaultdict(lambda: {"OWNER": 0, "RESIDENT": 0, "GUEST": 0})
+    for addr in addresses:
+        for ua in addr.residents:
+            role_counts[addr.id][ua.role.name] += 1
+
+    # Фильтрация
+    def passes_filter(address):
+        rc = role_counts[address.id]
+        if filter_type == "no_owner":
+            return rc["OWNER"] == 0
+        elif filter_type == "no_resident":
+            return rc["RESIDENT"] == 0
+        elif filter_type == "no_guest":
+            return rc["GUEST"] == 0
+        return True
+
+    filtered = list(filter(passes_filter, addresses))
+
+    # Пагинация
+    PER_PAGE = 10
+    total = len(filtered)
+    start = (page - 1) * PER_PAGE
+    end = start + PER_PAGE
+    page_items = filtered[start:end]
+
+    class Pagination:
+        def __init__(self, page, per_page, total):
+            self.page = page
+            self.per_page = per_page
+            self.total = total
+            self.pages = (total + per_page - 1) // per_page
+
+        def iter_pages(self):
+            return range(1, self.pages + 1)
+
+        @property
+        def has_prev(self): return self.page > 1
+        @property
+        def has_next(self): return self.page < self.pages
+        @property
+        def prev_num(self): return self.page - 1
+        @property
+        def next_num(self): return self.page + 1
+
+    pagination = Pagination(page, PER_PAGE, total)
+
+    return render_template(
+        "addresses.html",
+        addresses=page_items,
+        role_counts=role_counts,
+        pagination=pagination,
+        search=search,
+        filter_type=filter_type,
+        is_admin=is_admin_mode
+    )
+
+
+def has_full_control(user_id, address_id):
+    from app.models.user import UserRole
+    user_role = session.get("user_role")
+
+    if user_role == UserRole.ADMIN.value:
+        return True
+
+    user_address = UserAddress.query.filter_by(user_id=user_id, address_id=address_id).first()
+    return user_address and user_address.role.name == "OWNER"

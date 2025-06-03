@@ -11,6 +11,7 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(512), nullable=False)
     role = db.Column(Enum(UserRole), default=UserRole.USER, nullable=False)
+    is_blocked = db.Column(db.Boolean, default=False)
 
     addresses = relationship("UserAddress", back_populates="user", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")

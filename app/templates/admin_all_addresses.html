@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Все адреса{% endblock %}
+{% block content %}
+
+<h2>Все адреса</h2>
+
+<form class="row mb-3">
+  <div class="col-md-6 mb-2">
+    <input type="text" class="form-control" name="search" value="{{ search }}" placeholder="Поиск по адресу">
+  </div>
+  <div class="col-md-4 mb-2">
+    <select name="filter" class="form-select">
+      <option value="all" {% if filter_type == 'all' %}selected{% endif %}>Все</option>
+      <option value="no_owner" {% if filter_type == 'no_owner' %}selected{% endif %}>Без владельца</option>
+      <option value="no_resident" {% if filter_type == 'no_resident' %}selected{% endif %}>Без резидентов</option>
+      <option value="no_guest" {% if filter_type == 'no_guest' %}selected{% endif %}>Без гостей</option>
+    </select>
+  </div>
+  <div class="col-md-2 mb-2">
+    <button class="btn btn-primary w-100">Применить</button>
+  </div>
+</form>
+
+<table class="table table-hover">
+  <thead>
+    <tr>
+      <th>Адрес</th>
+      <th>Владелец</th>
+      <th>Резиденты</th>
+      <th>Гости</th>
+      <th>Управление</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for addr in addresses %}
+      <tr>
+        <td>
+          <a href="{{ url_for('web.address_residents', address_id=addr.id) }}">
+            {{ addr.street }}, {{ addr.building_number }}-{{ addr.unit_number }}
+          </a>
+        </td>
+        <td>{{ role_counts[addr.id]['OWNER'] }}</td>
+        <td>{{ role_counts[addr.id]['RESIDENT'] }}</td>
+        <td>{{ role_counts[addr.id]['GUEST'] }}</td>
+        <td>
+          <a href="{{ url_for('web.address_residents', address_id=addr.id) }}" class="btn btn-sm btn-outline-secondary">Перейти</a>
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<nav>
+  <ul class="pagination">
+    {% if pagination.has_prev %}
+      <li class="page-item">
+        <a class="page-link" href="?page={{ pagination.prev_num }}&search={{ search }}&filter={{ filter_type }}">←</a>
+      </li>
+    {% endif %}
+    {% for p in pagination.iter_pages() %}
+      <li class="page-item {% if p == pagination.page %}active{% endif %}">
+        <a class="page-link" href="?page={{ p }}&search={{ search }}&filter={{ filter_type }}">{{ p }}</a>
+      </li>
+    {% endfor %}
+    {% if pagination.has_next %}
+      <li class="page-item">
+        <a class="page-link" href="?page={{ pagination.next_num }}&search={{ search }}&filter={{ filter_type }}">→</a>
+      </li>
+    {% endif %}
+  </ul>
+</nav>
+
+{% endblock %}

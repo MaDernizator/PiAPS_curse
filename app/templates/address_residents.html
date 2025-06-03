@@ -22,7 +22,7 @@
       <td>{{ r.user.name }}</td>
       <td>{{ r.user.email }}</td>
       <td>{{ r.role.value }}</td>
-      {% if user_role == 'OWNER' %}
+      {% if user_role == "ADMIN" or user_role == 'OWNER' %}
       <td>
         {% if r.user.id != current_user_id %}
         <form method="POST" action="{{ url_for('web.update_resident_role', resident_id=r.id) }}" class="d-inline">
@@ -44,5 +44,5 @@
   </tbody>
 </table>
 
-<a href="{{ url_for('web.dashboard') }}">← Назад</a>
+<a href="{{ back_url }}" class="btn btn-outline-secondary btn-sm">← Назад</a>
 {% endblock %}

@@ -1,24 +1,98 @@
 {% extends "base.html" %}
-{% block title %}Ваши адреса{% endblock %}
+{% block title %}Панель управления{% endblock %}
 {% block content %}
-<h2>Ваши адреса</h2>
-<ul class="list-group mb-3">
-    {% for ua in addresses %}
-    <li class="list-group-item">
-        <strong>{{ ua.address.street }}, {{ ua.address.building_number }}-{{ ua.address.unit_number }}</strong>
-        <br>Роль: {{ ua.role.value }}
-        <br>
-        <a href="{{ url_for('web.address_residents', address_id=ua.address.id) }}"
-           class="btn btn-sm btn-outline-secondary mt-2">
-            Жильцы
-        </a>
-        {% if ua.role.name in ['OWNER', 'RESIDENT'] %}
-        <a href="{{ url_for('web.invite_user', address_id=ua.address.id) }}" class="btn btn-sm btn-primary mt-2">
-            Пригласить жильца
-        </a>
-        {% endif %}
-    </li>
-    {% endfor %}
-</ul>
-<a href="{{ url_for('web.join_address') }}" class="btn btn-secondary">Присоединиться по коду</a>
+<h2>Мои адреса</h2>
+
+{% for address in addresses %}
+<div class="card mb-3 p-3" style="overflow: visible; position: relative;">
+    <h5 class="mb-2">{{ address.street }}, {{ address.building_number }}-{{ address.unit_number }}</h5>
+
+    <div class="d-flex align-items-center flex-wrap">
+        <!-- Левая часть: кнопки -->
+        <div class="btn-group btn-group-sm me-4 mb-2">
+            <a href="{{ url_for('web.address_residents', address_id=address.id) }}" class="btn btn-outline-primary">
+                Управление жильцами
+            </a>
+            <a href="{{ url_for('web.invite_user', address_id=address.id) }}" class="btn btn-outline-secondary">
+                Пригласить
+            </a>
+        </div>
+
+        <!-- Правая часть: диаграмма -->
+        <div style="flex-grow: 1; min-width: 250px; overflow: visible; position: relative;">
+            <canvas id="chart-{{ address.id }}" height="60" style="max-height: 60px;"></canvas>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+      {% for address in addresses %}
+      new Chart(document.getElementById("chart-{{ address.id }}"), {
+        type: 'bar',
+        data: {
+          labels: [''],
+          datasets: [
+            {
+              label: 'OWNER',
+              data: [{{ role_counts[address.id]['OWNER'] }}],
+              backgroundColor: '#4CAF50'
+            },
+            {
+              label: 'RESIDENT',
+              data: [{{ role_counts[address.id]['RESIDENT'] }}],
+              backgroundColor: '#2196F3'
+            },
+            {
+              label: 'GUEST',
+              data: [{{ role_counts[address.id]['GUEST'] }}],
+              backgroundColor: '#FFC107'
+            }
+          ]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          plugins: {
+            tooltip: {
+              mode: 'index',
+              intersect: false
+            },
+            legend: {
+              display: false
+            },
+            datalabels: {
+              anchor: 'center',
+              align: 'center',
+              color: 'white',
+              font: {
+                weight: 'bold'
+              },
+              formatter: function (value) {
+                return value > 0 ? value : '';
+              }
+            }
+          },
+          scales: {
+            x: {
+              stacked: true,
+              display: false
+            },
+            y: {
+              stacked: true,
+              display: false
+            }
+          }
+        },
+        plugins: [ChartDataLabels]
+      });
+      {% endfor %}
+    });
+</script>
+
 {% endblock %}
