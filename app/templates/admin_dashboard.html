@@ -1,12 +1,31 @@
 {% extends "base.html" %}
-
+{% block title %}Создание адреса{% endblock %}
 {% block content %}
-  <h2>Создать адрес</h2>
-  <form method="POST" action="{{ url_for('web.admin_create_address') }}">
-    <input name="street" placeholder="Улица" required><br>
-    <input name="building" placeholder="Дом" required><br>
-    <input name="unit" placeholder="Квартира" required><br>
-    <input name="code" placeholder="Уникальный код (owner_code)" required><br>
-    <button type="submit">Создать</button>
-  </form>
+<h2>Создать адрес</h2>
+<form method="POST">
+  {{ form.hidden_tag() }}
+
+  {{ form.street(class="form-control mb-2", placeholder="Улица") }}
+  {% for error in form.street.errors %}
+    <div class="text-danger small">{{ error }}</div>
+  {% endfor %}
+
+  {{ form.building(class="form-control mb-2", placeholder="Дом") }}
+  {% for error in form.building.errors %}
+    <div class="text-danger small">{{ error }}</div>
+  {% endfor %}
+
+  {{ form.unit(class="form-control mb-2", placeholder="Квартира") }}
+  {% for error in form.unit.errors %}
+    <div class="text-danger small">{{ error }}</div>
+  {% endfor %}
+
+  {{ form.code(class="form-control mb-2", placeholder="Код владельца") }}
+  {% for error in form.code.errors %}
+    <div class="text-danger small">{{ error }}</div>
+  {% endfor %}
+
+  {{ form.submit(class="btn btn-success") }}
+</form>
+<a href="{{ url_for('web.dashboard') }}">← Назад</a>
 {% endblock %}

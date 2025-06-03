@@ -3,9 +3,19 @@
 {% block content %}
 <h2>Вход</h2>
 <form method="POST">
-  <input name="email" class="form-control mb-2" placeholder="Email">
-  <input name="password" type="password" class="form-control mb-2" placeholder="Пароль">
-  <button class="btn btn-primary">Войти</button>
+  {{ form.hidden_tag() }}
+
+  {{ form.email(class="form-control mb-2", placeholder="Email") }}
+  {% for error in form.email.errors %}
+    <div class="text-danger small">{{ error }}</div>
+  {% endfor %}
+
+  {{ form.password(class="form-control mb-2", placeholder="Пароль") }}
+  {% for error in form.password.errors %}
+    <div class="text-danger small">{{ error }}</div>
+  {% endfor %}
+
+  {{ form.submit(class="btn btn-primary") }}
 </form>
 <a href="{{ url_for('web.register') }}">Нет аккаунта?</a>
 {% endblock %}

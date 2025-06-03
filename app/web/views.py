@@ -15,6 +15,9 @@ from app.models.invitation import Invitation
 from flask import abort
 from flask import current_app
 
+from app.forms import RegisterForm, LoginForm, AdminAddressForm, InviteForm
+
+
 web_bp = Blueprint("web", __name__)
 
 import logging
@@ -36,12 +39,15 @@ def index():
     return redirect(url_for("web.login"))
 
 
+from app.forms import RegisterForm
+
 @web_bp.route("/register", methods=["GET", "POST"])
 def register():
-    if request.method == "POST":
-        email = request.form["email"]
-        password = request.form["password"]
-        name = request.form["name"]
+    form = RegisterForm()
+    if form.validate_on_submit():
+        email = form.email.data
+        password = form.password.data
+        name = form.name.data
 
         existing = User.query.filter_by(email=email).first()
         if existing:
@@ -55,33 +61,36 @@ def register():
             db.session.add(user)
             db.session.commit()
             logging.info(f"Зарегистрирован новый пользователь: {email}")
-            flash("Регистрация прошла успешно, войдите в систему", "success")
+            flash("Регистрация прошла успешно", "success")
             return redirect(url_for("web.login"))
-
         except SQLAlchemyError as e:
-            logging.error(f"Ошибка при регистрации: {str(e)}")
-            flash("Ошибка при регистрации", "danger")
             db.session.rollback()
-            return redirect(url_for("web.register"))
+            logging.error(f"Ошибка регистрации: {str(e)}")
+            flash("Ошибка при регистрации", "danger")
 
-    return render_template("register.html")
+    return render_template("register.html", form=form)
+
 
 
 @web_bp.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == "POST":
-        email = request.form["email"]
-        password = request.form["password"]
+    form = LoginForm()
+    if form.validate_on_submit():
+        email = form.email.data
+        password = form.password.data
+
         user = User.query.filter_by(email=email).first()
         if user and check_password_hash(user.password, password):
             token = create_access_token(identity=str(user.id))
             session["user_id"] = user.id
             session["token"] = token
             session["user_role"] = user.role.value
-            current_app.logger.info(f'Пользователь вошёл: {user.email}')
+            current_app.logger.info(f"Пользователь вошёл: {user.email}")
             return redirect(url_for("web.dashboard"))
+
         flash("Неверные учетные данные", "danger")
-    return render_template("login.html")
+
+    return render_template("login.html", form=form)
 
 
 @web_bp.route("/dashboard")
@@ -236,19 +245,16 @@ def invite_user(address_id):
 
     address = Address.query.get_or_404(address_id)
     current_user_id = session["user_id"]
-    from app.models.invitation import Invitation
 
-    # проверка прав
     ua = UserAddress.query.filter_by(user_id=current_user_id, address_id=address.id).first()
     if not ua or ua.role not in [ResidentRole.OWNER, ResidentRole.RESIDENT]:
         abort(403)
 
-    if request.method == "POST":
-        email = request.form["email"]
+    form = InviteForm()
+    if form.validate_on_submit():
         code = uuid.uuid4().hex
-
         invitation = Invitation(
-            email=email,
+            email=form.email.data,
             address_id=address.id,
             code=code,
             created_at=datetime.utcnow(),
@@ -258,16 +264,15 @@ def invite_user(address_id):
         try:
             db.session.add(invitation)
             db.session.commit()
-            logging.info(f"Пользователь {email} приглашён к адресу {address.id}")
+            logging.info(f"Пользователь {form.email.data} приглашён к адресу {address.id}")
             flash("Приглашение отправлено", "success")
+            return redirect(url_for("web.dashboard"))
         except SQLAlchemyError as e:
             db.session.rollback()
-            logging.error(f"Ошибка при отправке приглашения: {str(e)}")
-            flash("Не удалось отправить приглашение", "danger")
+            logging.error(f"Ошибка при приглашении: {str(e)}")
+            flash("Ошибка при приглашении", "danger")
 
-        return redirect(url_for("web.dashboard"))
-
-    return render_template("invite_user.html", address=address)
+    return render_template("invite_user.html", address=address, form=form)
 
 
 @web_bp.route("/accept-invitation", methods=["GET", "POST"])
@@ -344,47 +349,33 @@ def my_invitations():
     return render_template("my_invitations.html", invites=invites)
 
 
-@web_bp.route("/admin/dashboard", methods=["GET", "POST"])
-def admin_create_address():
-    if "user_id" not in session or session.get("user_role") != "ADMIN":
-        abort(403)
-
-    if request.method == "POST":
-        street = request.form["street"]
-        building = request.form["building"]
-        unit = request.form["unit"]
-        code = request.form["code"]
-
-        address = Address(
-            street=street,
-            building_number=building,
-            unit_number=unit,
-            owner_code=code
-        )
-
-        try:
-            db.session.add(address)
-            db.session.commit()
-
-            flash("Адрес создан", "success")
-            logging.info(f"Админ создал адрес: {street}, {building}, {unit}, код: {code}")
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            logging.error(f"Ошибка создания адреса: {str(e)}")
-            flash("Не удалось создать адрес", "danger")
-
-        return redirect(url_for("web.dashboard"))
-
-    return render_template("admin_dashboard.html")
-
-
-@web_bp.route("/admin", methods=["GET"])
+@web_bp.route("/admin", methods=["GET", "POST"])
 def admin_dashboard():
     if session.get("user_role") != "ADMIN":
         flash("Доступ запрещён", "danger")
         return redirect(url_for("web.dashboard"))
 
-    addresses = Address.query.all()  # Пример: показать все адреса
-    return render_template("admin_dashboard.html", addresses=addresses)
+    form = AdminAddressForm()
+    if form.validate_on_submit():
+        address = Address(
+            street=form.street.data,
+            building_number=form.building.data,
+            unit_number=form.unit.data,
+            owner_code=form.code.data
+        )
+        try:
+            db.session.add(address)
+            db.session.commit()
+            flash("Адрес создан", "success")
+            logging.info(f"Админ создал адрес: {form.street.data}, {form.building.data}, {form.unit.data}")
+            return redirect(url_for("web.admin_dashboard"))
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            flash("Ошибка при создании адреса", "danger")
+            logging.error(f"Ошибка создания адреса: {str(e)}")
+
+    addresses = Address.query.all()
+    return render_template("admin_dashboard.html", addresses=addresses, form=form)
+
 
 # TODO отклонить приглошение
