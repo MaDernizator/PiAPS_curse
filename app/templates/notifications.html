@@ -4,14 +4,24 @@
 <h2>Уведомления</h2>
 {% if notes %}
   <ul class="list-group">
-  {% for n in notes %}
+  {% for item in notes %}
+    {% set n = item.note %}
     <li class="list-group-item d-flex justify-content-between align-items-center {% if not n.viewed %}list-group-item-warning{% endif %}">
-      {{ n.event }}
-      {% if not n.viewed %}
-      <form method="post" action="{{ url_for('web.mark_notification', id=n.id) }}">
-        <button class="btn btn-sm btn-success">Прочитано</button>
-      </form>
+      {{ item.message }}
+      <div>
+      {% if item.type == 'invitation' %}
+        <form method="post" class="d-inline" action="{{ url_for('web.accept_invite_notification', id=n.id) }}">
+          <button class="btn btn-sm btn-primary">Принять</button>
+        </form>
+        <form method="post" class="d-inline" action="{{ url_for('web.decline_invite_notification', id=n.id) }}">
+          <button class="btn btn-sm btn-secondary">Отклонить</button>
+        </form>
+      {% elif not n.viewed %}
+        <form method="post" class="d-inline" action="{{ url_for('web.mark_notification', id=n.id) }}">
+          <button class="btn btn-sm btn-success">Прочитано</button>
+        </form>
       {% endif %}
+      </div>
     </li>
   {% endfor %}
   </ul>

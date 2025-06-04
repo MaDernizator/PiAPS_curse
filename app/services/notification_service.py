@@ -5,16 +5,18 @@ from app.models.user_address import UserAddress
 
 class NotificationService:
     @staticmethod
-    def create_notification(user_id, event):
-        n = Notification(user_id=user_id, event=event)
+    def create_notification(user_id, event, viewed=False):
+        n = Notification(user_id=user_id, event=event, viewed=viewed)
         db.session.add(n)
         db.session.commit()
 
     @staticmethod
-    def notify_invitation(email, address_id):
+    def notify_invitation(email, address_id, inviter_id, invitation_id):
         user = User.query.filter_by(email=email).first()
-        if user and getattr(user, "notify_invites", True):
-            NotificationService.create_notification(user.id, f"invited:{address_id}")
+        if user:
+            viewed = not getattr(user, "notify_invites", True)
+            event = f"invited:{address_id}:{inviter_id}:{invitation_id}"
+            NotificationService.create_notification(user.id, event, viewed=viewed)
 
     @staticmethod
     def notify_resident_change(address_id, event, exclude_user_id=None):
@@ -22,5 +24,5 @@ class NotificationService:
         for r in residents:
             if exclude_user_id and r.user_id == exclude_user_id:
                 continue
-            if getattr(r.user, "notify_residents", True):
-                NotificationService.create_notification(r.user_id, f"{event}:{address_id}")
+            viewed = not getattr(r.user, "notify_residents", True)
+            NotificationService.create_notification(r.user_id, f"{event}:{address_id}", viewed=viewed)
