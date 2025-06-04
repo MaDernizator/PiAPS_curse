@@ -373,7 +373,12 @@ def notifications():
         return redirect(url_for("web.login"))
 
     user = User.query.get(session["user_id"])
-    notes = Notification.query.filter_by(user_id=user.id).order_by(Notification.sent_at.desc()).all()
+    notes = (
+        Notification.query
+        .filter_by(user_id=user.id, viewed=False)
+        .order_by(Notification.sent_at.desc())
+        .all()
+    )
 
     processed = []
     for n in notes:
