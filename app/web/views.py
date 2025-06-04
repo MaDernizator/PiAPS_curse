@@ -14,6 +14,7 @@ from flask_jwt_extended import create_access_token
 from app.models.enums import ResidentRole
 from app.models.invitation import Invitation
 from app.models.notification import Notification
+from app.services.notification_service import NotificationService
 from flask import abort
 from flask import current_app
 from app.utils.navigation import preserve_back_url
@@ -193,6 +194,11 @@ def update_resident_role(resident_id):
     new_role = request.form["role"]
     ua.role = ResidentRole[new_role]
     db.session.commit()
+    NotificationService.notify_resident_change(
+        address_id,
+        "role_changed",
+        exclude_user_id=ua.user_id,
+    )
 
     flash("Роль обновлена", "success")
     return redirect(url_for("web.address_residents", address_id=address_id))
@@ -213,6 +219,11 @@ def remove_resident(resident_id):
     # 💡 Разрешим даже удаление себя, если админ
     db.session.delete(ua)
     db.session.commit()
+    NotificationService.notify_resident_change(
+        address_id,
+        "resident_removed",
+        exclude_user_id=ua.user_id,
+    )
 
     flash("Жилец удалён", "info")
     return redirect(url_for("web.address_residents", address_id=address_id))
@@ -253,6 +264,7 @@ def invite_user(address_id):
         try:
             db.session.add(invitation)
             db.session.commit()
+            NotificationService.notify_invitation(form.email.data, address.id)
             logging.info(f"Пользователь {form.email.data} приглашён к адресу {address.id}")
             flash("Приглашение отправлено", "success")
             return redirect(url_for("web.address_residents", address_id=address.id))
@@ -294,6 +306,11 @@ def accept_invitation():
         invitation.used = True
         db.session.add(ua)
         db.session.commit()
+        NotificationService.notify_resident_change(
+            invitation.address_id,
+            "resident_added",
+            exclude_user_id=session["user_id"],
+        )
 
         flash("Вы успешно присоединились", "success")
         return redirect(url_for("web.addresses"))
