@@ -14,5 +14,10 @@ sleep 10  # ⬅️ Дай миграциям немного времени
 echo "👤 Создание суперпользователя"
 flask create-superuser
 
+if [ -n "$TELEGRAM_TOKEN" ]; then
+  echo "🤖 Запуск Telegram бота"
+  python telegram_bot.py &
+fi
+
 echo "🚀 Запуск сервера"
 exec flask run --host=0.0.0.0 --port=5000

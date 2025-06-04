@@ -21,3 +21,6 @@
    python telegram_bot.py
    ```
 
+При запуске через Docker `entrypoint.sh` автоматически стартует бота,
+если задана переменная окружения `TELEGRAM_TOKEN`.
+
