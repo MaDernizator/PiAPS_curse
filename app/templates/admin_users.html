@@ -1,9 +1,35 @@
 {% extends "base.html" %}
+{% block title %}Пользователи{% endblock %}
 {% block content %}
 <h2>Пользователи</h2>
 
-<table class="table">
-  <thead>
+<!-- Фильтры -->
+<form method="get" class="row g-2 mb-3">
+  <div class="col-md-4">
+    <input type="text" class="form-control" name="search" value="{{ search }}" placeholder="Поиск по email или имени">
+  </div>
+  <div class="col-md-3">
+    <select name="role" class="form-select">
+      <option value="all" {% if role_filter == 'all' %}selected{% endif %}>Все роли</option>
+      <option value="admin" {% if role_filter == 'admin' %}selected{% endif %}>Администраторы</option>
+      <option value="user" {% if role_filter == 'user' %}selected{% endif %}>Пользователи</option>
+    </select>
+  </div>
+  <div class="col-md-3">
+    <select name="status" class="form-select">
+      <option value="all" {% if status_filter == 'all' %}selected{% endif %}>Все статусы</option>
+      <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Активные</option>
+      <option value="blocked" {% if status_filter == 'blocked' %}selected{% endif %}>Заблокированные</option>
+    </select>
+  </div>
+  <div class="col-md-2">
+    <button class="btn btn-primary w-100">Применить</button>
+  </div>
+</form>
+
+<!-- Таблица -->
+<table class="table table-bordered table-hover">
+  <thead class="table-light">
     <tr>
       <th>ID</th>
       <th>Email</th>
@@ -15,26 +41,58 @@
   </thead>
   <tbody>
     {% for user in users %}
-      <tr>
-        <td>{{ user.id }}</td>
-        <td>{{ user.email }}</td>
-        <td>{{ user.name }}</td>
-        <td>{{ user.role.name }}</td>
-        <td>
-          {% if user.is_blocked %}
-            <span class="badge bg-danger">Заблокирован</span>
-          {% else %}
-            <span class="badge bg-success">Активен</span>
-          {% endif %}
-        </td>
-        <td>
+    <tr>
+      <td>{{ user.id }}</td>
+      <td>{{ user.email }}</td>
+      <td>{{ user.name }}</td>
+      <td>
+        <span class="badge {% if user.role.name == 'ADMIN' %}bg-primary{% else %}bg-secondary{% endif %}">
+          {{ user.role.name }}
+        </span>
+      </td>
+      <td>
+        {% if user.is_blocked %}
+        <span class="badge bg-danger">Заблокирован</span>
+        {% else %}
+        <span class="badge bg-success">Активен</span>
+        {% endif %}
+      </td>
+      <td>
+        <div class="btn-group btn-group-sm">
           <a href="{{ url_for('web.admin_toggle_user_block', user_id=user.id) }}"
-             class="btn btn-sm {% if user.is_blocked %}btn-success{% else %}btn-danger{% endif %}">
-             {% if user.is_blocked %}Разблокировать{% else %}Заблокировать{% endif %}
+             class="btn btn-outline-{{ 'success' if user.is_blocked else 'danger' }}">
+            {% if user.is_blocked %}Разблокировать{% else %}Заблокировать{% endif %}
           </a>
-        </td>
-      </tr>
+          <a href="{{ url_for('web.admin_toggle_user_admin', user_id=user.id) }}"
+             class="btn btn-outline-{{ 'secondary' if user.role.name == 'ADMIN' else 'primary' }}">
+            {% if user.role.name == 'ADMIN' %}Сделать пользователем{% else %}Сделать админом{% endif %}
+          </a>
+        </div>
+      </td>
+    </tr>
     {% endfor %}
   </tbody>
 </table>
+
+<!-- Пагинация -->
+<nav>
+  <ul class="pagination">
+    {% if pagination.has_prev %}
+    <li class="page-item">
+      <a class="page-link" href="{{ url_for('web.admin_users', page=pagination.prev_num, search=search, role=role_filter, status=status_filter) }}">Назад</a>
+    </li>
+    {% endif %}
+    {% for p in pagination.iter_pages() %}
+    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+      <a class="page-link" href="{{ url_for('web.admin_users', page=p, search=search, role=role_filter, status=status_filter) }}">{{ p }}</a>
+    </li>
+    {% endfor %}
+    {% if pagination.has_next %}
+    <li class="page-item">
+      <a class="page-link" href="{{ url_for('web.admin_users', page=pagination.next_num, search=search, role=role_filter, status=status_filter) }}">Вперёд</a>
+    </li>
+    {% endif %}
+  </ul>
+</nav>
+
 {% endblock %}

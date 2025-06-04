@@ -16,7 +16,8 @@ from app.models.invitation import Invitation
 from flask import abort
 from flask import current_app
 from app.utils.navigation import preserve_back_url
-
+from app.models.enums import ResidentRole
+from app.models.enums import UserRole
 
 from app.forms import RegisterForm, LoginForm, AdminAddressForm, InviteForm, ProfileForm
 
@@ -82,13 +83,19 @@ def login():
         password = form.password.data
 
         user = User.query.filter_by(email=email).first()
-        if user and check_password_hash(user.password, password):
-            token = create_access_token(identity=str(user.id))
-            session["user_id"] = user.id
-            session["token"] = token
-            session["user_role"] = user.role.value
-            current_app.logger.info(f"Пользователь вошёл: {user.email}")
-            return redirect(url_for("web.addresses"))
+
+        if user:
+            if user.is_blocked:
+                flash("Ваш аккаунт заблокирован. Обратитесь к администратору.", "danger")
+                return redirect(url_for("web.login"))
+
+            if check_password_hash(user.password, password):
+                token = create_access_token(identity=str(user.id))
+                session["user_id"] = user.id
+                session["token"] = token
+                session["user_role"] = user.role.value
+                current_app.logger.info(f"Пользователь вошёл: {user.email}")
+                return redirect(url_for("web.addresses"))
 
         flash("Неверные учетные данные", "danger")
 
@@ -366,8 +373,36 @@ def admin_users():
         flash("Доступ запрещён", "danger")
         return redirect(url_for("web.addresses"))
 
-    users = User.query.all()
-    return render_template("admin_users.html", users=users)
+    search = request.args.get("search", "").strip()
+    role_filter = request.args.get("role", "all")
+    status_filter = request.args.get("status", "all")
+    page = request.args.get("page", 1, type=int)
+    PER_PAGE = 10
+
+    query = User.query
+
+    if search:
+        query = query.filter(User.email.ilike(f"%{search}%") | User.name.ilike(f"%{search}%"))
+
+    if role_filter != "all":
+        role_value = UserRole.ADMIN if role_filter == "admin" else UserRole.USER
+        query = query.filter(User.role == role_value)
+
+    if status_filter != "all":
+        if status_filter == "blocked":
+            query = query.filter(User.is_blocked == True)
+        elif status_filter == "active":
+            query = query.filter((User.is_blocked == False) | (User.is_blocked.is_(None)))
+
+    pagination = query.order_by(User.id.desc()).paginate(page=page, per_page=PER_PAGE, error_out=False)
+    users = pagination.items
+
+    return render_template("admin_users.html",
+                           users=users,
+                           pagination=pagination,
+                           search=search,
+                           role_filter=role_filter,
+                           status_filter=status_filter)
 
 
 @web_bp.route("/admin/user/<int:user_id>/toggle-block")
@@ -385,8 +420,30 @@ def admin_toggle_user_block(user_id):
         flash(f"Пользователь {user.email} {status}", "info")
     except SQLAlchemyError as e:
         db.session.rollback()
-        logging.error(f"Ошибка блокировки: {str(e)}")
+        current_app.logger.error(f"Ошибка блокировки: {str(e)}")
         flash("Ошибка блокировки", "danger")
+
+    return redirect(url_for("web.admin_users"))
+
+
+@web_bp.route("/admin/user/<int:user_id>/toggle-admin")
+def admin_toggle_user_admin(user_id):
+    if session.get("user_role") != "ADMIN":
+        flash("Доступ запрещён", "danger")
+        return redirect(url_for("web.addresses"))
+
+
+    user = User.query.get_or_404(user_id)
+
+    user.role = UserRole.USER if user.role == UserRole.ADMIN else UserRole.ADMIN
+
+    try:
+        db.session.commit()
+        flash(f"Пользователю {user.email} назначена роль: {user.role.name}", "info")
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        current_app.logger.error(f"Ошибка назначения роли: {str(e)}")
+        flash("Ошибка при смене роли", "danger")
 
     return redirect(url_for("web.admin_users"))
 
@@ -439,7 +496,9 @@ def addresses():
         user_addresses = UserAddress.query.filter_by(user_id=user_id).all()
         address_ids = [ua.address_id for ua in user_addresses]
         query = Address.query.filter(Address.id.in_(address_ids))
-
+    user_ownership_ids = set(
+        ua.address_id for ua in UserAddress.query.filter_by(user_id=user_id, role=ResidentRole.OWNER).all()
+    )
     if search:
         query = query.filter(
             Address.street.ilike(f"%{search}%") |
@@ -504,7 +563,8 @@ def addresses():
         pagination=pagination,
         search=search,
         filter_type=filter_type,
-        is_admin=is_admin_mode
+        is_admin=is_admin_mode,
+        user_ownership_ids=user_ownership_ids
     )
 
 
@@ -517,3 +577,21 @@ def has_full_control(user_id, address_id):
 
     user_address = UserAddress.query.filter_by(user_id=user_id, address_id=address_id).first()
     return user_address and user_address.role.name == "OWNER"
+
+@web_bp.route("/address/<int:address_id>/delete", methods=["POST"])
+def delete_address(address_id):
+    if not is_admin():
+        abort(403)
+
+    address = Address.query.get_or_404(address_id)
+
+    # Удалим сначала связи
+    UserAddress.query.filter_by(address_id=address_id).delete()
+    Invitation.query.filter_by(address_id=address_id).delete()
+
+    # Потом сам адрес
+    db.session.delete(address)
+    db.session.commit()
+
+    flash("Адрес удалён.", "success")
+    return redirect(url_for("web.addresses", mode="all"))

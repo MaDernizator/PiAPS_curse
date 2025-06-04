@@ -5,113 +5,131 @@
 <h2>{% if is_admin %}Все адреса{% else %}Мои адреса{% endif %}</h2>
 
 <form class="row mb-3">
-  {% if is_admin %}
+    {% if is_admin %}
     <input type="hidden" name="mode" value="all">
-  {% endif %}
-  <div class="col-md-6 mb-2">
-    <input type="text" class="form-control" name="search" value="{{ search }}" placeholder="Поиск по адресу">
-  </div>
-  <div class="col-md-4 mb-2">
-    <select name="filter" class="form-select">
-      <option value="all" {% if filter_type == 'all' %}selected{% endif %}>Все</option>
-      <option value="no_owner" {% if filter_type == 'no_owner' %}selected{% endif %}>Без владельца</option>
-      <option value="no_resident" {% if filter_type == 'no_resident' %}selected{% endif %}>Без резидентов</option>
-      <option value="no_guest" {% if filter_type == 'no_guest' %}selected{% endif %}>Без гостей</option>
-    </select>
-  </div>
-  <div class="col-md-2 mb-2">
-    <button class="btn btn-primary w-100">Применить</button>
-  </div>
+    {% endif %}
+    <div class="col-md-6 mb-2">
+        <input type="text" class="form-control" name="search" value="{{ search }}" placeholder="Поиск по адресу">
+    </div>
+    <div class="col-md-4 mb-2">
+        <select name="filter" class="form-select">
+            <option value="all" {% if filter_type==
+            'all' %}selected{% endif %}>Все</option>
+            <option value="no_owner" {% if filter_type==
+            'no_owner' %}selected{% endif %}>Без владельца</option>
+            <option value="no_resident" {% if filter_type==
+            'no_resident' %}selected{% endif %}>Без резидентов</option>
+            <option value="no_guest" {% if filter_type==
+            'no_guest' %}selected{% endif %}>Без гостей</option>
+        </select>
+    </div>
+    <div class="col-md-2 mb-2">
+        <button class="btn btn-primary w-100">Применить</button>
+    </div>
 </form>
 
 
 {% for address in addresses %}
-  <div class="card mb-3 p-3" style="overflow: visible; position: relative;">
+<div class="card mb-3 p-3 {% if address.id in user_ownership_ids %}bg-success bg-opacity-25{% endif %}"
+     style="overflow: visible; position: relative;">
     <h5 class="mb-2">
-      <a href="{{ url_for('web.address_residents', address_id=address.id) }}">
-        {{ address.street }}, {{ address.building_number }}-{{ address.unit_number }}
-      </a>
+        <a href="{{ url_for('web.address_residents', address_id=address.id) }}">
+            {{ address.street }}, {{ address.building_number }}-{{ address.unit_number }}
+        </a>
     </h5>
+    {% if is_admin %}
+  <form method="post"
+        action="{{ url_for('web.delete_address', address_id=address.id) }}"
+        onsubmit="return confirm('Удалить этот адрес? Это действие необратимо.')"
+        style="position: absolute; top: 10px; right: 10px; z-index: 10;">
+    <button type="submit" class="btn btn-sm btn-outline-danger" title="Удалить адрес">
+      <i class="bi bi-trash">Удалить</i> <!-- или просто × если нет Bootstrap Icons -->
+    </button>
+  </form>
+{% endif %}
 
     <div class="d-flex align-items-center flex-wrap">
         <div class="btn-group btn-group-sm me-4 mb-2">
-          <a href="{{ url_for('web.invite_user', address_id=address.id) }}" class="btn btn-outline-secondary">
-            Пригласить
-          </a>
+            <a href="{{ url_for('web.invite_user', address_id=address.id) }}" class="btn btn-outline-secondary">
+                Пригласить
+            </a>
+
+
         </div>
 
-      <div style="flex-grow: 1; min-width: 250px; overflow: visible; position: relative;">
-        <canvas id="chart-{{ address.id }}" height="60" style="max-height: 60px;"></canvas>
-      </div>
+        <div style="flex-grow: 1; min-width: 250px; overflow: visible; position: relative;">
+            <canvas id="chart-{{ address.id }}" height="60" style="max-height: 60px;"></canvas>
+        </div>
     </div>
-  </div>
+</div>
 {% endfor %}
 
 <!-- Пагинация -->
 <nav>
-  <ul class="pagination">
-    {% if pagination.has_prev %}
-      <li class="page-item">
-        <a class="page-link"
-   href="?page={{ pagination.prev_num }}&search={{ search }}&filter={{ filter_type }}{% if is_admin %}&mode=all{% endif %}"></a>
+    <ul class="pagination">
+        {% if pagination.has_prev %}
+        <li class="page-item">
+            <a class="page-link"
+               href="?page={{ pagination.prev_num }}&search={{ search }}&filter={{ filter_type }}{% if is_admin %}&mode=all{% endif %}"></a>
 
-      </li>
-    {% endif %}
-    {% for p in pagination.iter_pages() %}
-      <li class="page-item {% if p == pagination.page %}active{% endif %}">
-        <a class="page-link"
-   href="?page={{ p }}&search={{ search }}&filter={{ filter_type }}{% if is_admin %}&mode=all{% endif %}">{{ p }}</a>
+        </li>
+        {% endif %}
+        {% for p in pagination.iter_pages() %}
+        <li class="page-item {% if p == pagination.page %}active{% endif %}">
+            <a class="page-link"
+               href="?page={{ p }}&search={{ search }}&filter={{ filter_type }}{% if is_admin %}&mode=all{% endif %}">{{
+                p }}</a>
 
-      </li>
-    {% endfor %}
-    {% if pagination.has_next %}
-      <li class="page-item">
-        <a class="page-link"
-   href="?page={{ pagination.next_num }}&search={{ search }}&filter={{ filter_type }}{% if is_admin %}&mode=all{% endif %}"></a>
+        </li>
+        {% endfor %}
+        {% if pagination.has_next %}
+        <li class="page-item">
+            <a class="page-link"
+               href="?page={{ pagination.next_num }}&search={{ search }}&filter={{ filter_type }}{% if is_admin %}&mode=all{% endif %}"></a>
 
-      </li>
-    {% endif %}
-  </ul>
+        </li>
+        {% endif %}
+    </ul>
 </nav>
 
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 <script>
-  document.addEventListener("DOMContentLoaded", function () {
-    {% for address in addresses %}
-    new Chart(document.getElementById("chart-{{ address.id }}"), {
-      type: 'bar',
-      data: {
-        labels: [''],
-        datasets: [
-          { label: 'OWNER', data: [{{ role_counts[address.id]['OWNER'] }}], backgroundColor: '#4CAF50' },
-          { label: 'RESIDENT', data: [{{ role_counts[address.id]['RESIDENT'] }}], backgroundColor: '#2196F3' },
-          { label: 'GUEST', data: [{{ role_counts[address.id]['GUEST'] }}], backgroundColor: '#FFC107' }
-        ]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        plugins: {
-          tooltip: { mode: 'index', intersect: false },
-          legend: { display: false },
-          datalabels: {
-            anchor: 'center',
-            align: 'center',
-            color: 'white',
-            font: { weight: 'bold' },
-            formatter: v => v > 0 ? v : ''
+    document.addEventListener("DOMContentLoaded", function () {
+      {% for address in addresses %}
+      new Chart(document.getElementById("chart-{{ address.id }}"), {
+        type: 'bar',
+        data: {
+          labels: [''],
+          datasets: [
+            { label: 'OWNER', data: [{{ role_counts[address.id]['OWNER'] }}], backgroundColor: '#4CAF50' },
+            { label: 'RESIDENT', data: [{{ role_counts[address.id]['RESIDENT'] }}], backgroundColor: '#2196F3' },
+            { label: 'GUEST', data: [{{ role_counts[address.id]['GUEST'] }}], backgroundColor: '#FFC107' }
+          ]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          plugins: {
+            tooltip: { mode: 'index', intersect: false },
+            legend: { display: false },
+            datalabels: {
+              anchor: 'center',
+              align: 'center',
+              color: 'white',
+              font: { weight: 'bold' },
+              formatter: v => v > 0 ? v : ''
+            }
+          },
+          scales: {
+            x: { stacked: true, display: false },
+            y: { stacked: true, display: false }
           }
         },
-        scales: {
-          x: { stacked: true, display: false },
-          y: { stacked: true, display: false }
-        }
-      },
-      plugins: [ChartDataLabels]
+        plugins: [ChartDataLabels]
+      });
+      {% endfor %}
     });
-    {% endfor %}
-  });
 </script>
 {% endblock %}
