@@ -375,7 +375,7 @@ def notifications():
     user = User.query.get(session["user_id"])
     notes = (
         Notification.query
-        .filter_by(user_id=user.id, viewed=False)
+        .filter_by(user_id=user.id)
         .order_by(Notification.sent_at.desc())
         .all()
     )
@@ -386,22 +386,35 @@ def notifications():
         message = n.event
         note_type = None
         extra = {}
+        show = False
         if parts[0] == "invited" and len(parts) == 4:
-            addr = Address.query.get(int(parts[1]))
-            inviter = User.query.get(int(parts[2]))
-            message = f"{inviter.name} пригласил вас на адрес {addr.street} {addr.building_number}, кв. {addr.unit_number}"
-            note_type = "invitation"
-            extra["note_id"] = n.id
-        elif parts[0] in ["resident_added", "resident_removed", "role_changed"] and len(parts) >= 2:
+            inv = Invitation.query.get(int(parts[3]))
+            if inv and not inv.used:
+                addr = Address.query.get(int(parts[1]))
+                inviter = User.query.get(int(parts[2]))
+                message = (
+                    f"{inviter.name} пригласил вас на адрес "
+                    f"{addr.street} {addr.building_number}, кв. {addr.unit_number}"
+                )
+                note_type = "invitation"
+                extra["note_id"] = n.id
+                show = True
+        elif not n.viewed and parts[0] in ["resident_added", "resident_removed", "role_changed"] and len(parts) >= 2:
             addr = Address.query.get(int(parts[1]))
             changes = {
                 "resident_added": "добавлен новый жилец",
                 "resident_removed": "жилец удалён",
                 "role_changed": "изменена роль жильца",
             }
-            message = f"На адресе {addr.street} {addr.building_number}, кв. {addr.unit_number} {changes.get(parts[0], '')}"
+            message = (
+                f"На адресе {addr.street} {addr.building_number}, кв. {addr.unit_number} "
+                f"{changes.get(parts[0], '')}"
+            )
             note_type = "resident"
-        processed.append({"note": n, "message": message, "type": note_type, "extra": extra})
+            show = True
+
+        if show:
+            processed.append({"note": n, "message": message, "type": note_type, "extra": extra})
 
     return render_template("notifications.html", notes=processed)
 
@@ -753,8 +766,18 @@ def delete_address(address_id):
 
 @web_bp.app_context_processor
 def inject_notification_count():
-    if session.get("user_id"):
-        count = Notification.query.filter_by(user_id=session["user_id"], viewed=False).count()
-    else:
-        count = 0
+    if not session.get("user_id"):
+        return {"notification_count": 0}
+
+    notes = Notification.query.filter_by(user_id=session["user_id"]).all()
+    count = 0
+    for n in notes:
+        parts = n.event.split(":")
+        if parts[0] == "invited" and len(parts) == 4:
+            inv = Invitation.query.get(int(parts[3]))
+            if inv and not inv.used:
+                count += 1
+        elif not n.viewed:
+            count += 1
+
     return {"notification_count": count}
