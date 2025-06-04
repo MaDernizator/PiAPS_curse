@@ -78,5 +78,30 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% if session.get("user_id") %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  if ("Notification" in window) {
+    if (Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+
+    async function poll() {
+      try {
+        const resp = await fetch("{{ url_for('web.poll_notifications') }}");
+        if (resp.ok) {
+          const data = await resp.json();
+          data.forEach(n => new Notification("KomuService", { body: n.message }));
+        }
+      } catch (e) {
+        console.error(e);
+      }
+      setTimeout(poll, 60000);
+    }
+    poll();
+  }
+});
+</script>
+{% endif %}
 </body>
 </html>

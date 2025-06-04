@@ -1,7 +1,7 @@
 from collections import defaultdict
 from datetime import datetime
 
-from flask import Blueprint, render_template, redirect, url_for, request, session, flash
+from flask import Blueprint, render_template, redirect, url_for, request, session, flash, jsonify
 from sqlalchemy.exc import SQLAlchemyError
 import uuid
 
@@ -37,6 +37,31 @@ import logging
 def is_admin():
     from app.models.user import UserRole
     return session.get("user_role") == UserRole.ADMIN.value
+
+
+def _format_message(event: str) -> str:
+    parts = event.split(":")
+    if parts[0] == "invited" and len(parts) == 4:
+        addr = Address.query.get(int(parts[1]))
+        inviter = User.query.get(int(parts[2]))
+        if addr and inviter:
+            return (
+                f"{inviter.name} пригласил вас на адрес "
+                f"{addr.street} {addr.building_number}, кв. {addr.unit_number}"
+            )
+    elif parts[0] in ["resident_added", "resident_removed", "role_changed"] and len(parts) >= 2:
+        addr = Address.query.get(int(parts[1]))
+        if addr:
+            changes = {
+                "resident_added": "добавлен новый жилец",
+                "resident_removed": "жилец удалён",
+                "role_changed": "изменена роль жильца",
+            }
+            return (
+                f"На адресе {addr.street} {addr.building_number}, кв. {addr.unit_number} "
+                f"{changes.get(parts[0], '')}"
+            )
+    return event
 
 
 @web_bp.route("/")
@@ -385,6 +410,24 @@ def mark_notification(id):
     note.viewed = True
     db.session.commit()
     return redirect(url_for("web.notifications"))
+
+
+@web_bp.route("/notifications/poll")
+def poll_notifications():
+    if "user_id" not in session:
+        return jsonify([])
+
+    notes = (
+        Notification.query.filter_by(user_id=session["user_id"], viewed=False)
+        .order_by(Notification.sent_at.asc())
+        .all()
+    )
+    result = []
+    for n in notes:
+        result.append({"id": n.id, "message": _format_message(n.event)})
+        n.viewed = True
+    db.session.commit()
+    return jsonify(result)
 
 
 @web_bp.route("/notification/<int:id>/accept", methods=["POST"])
