@@ -2,7 +2,14 @@ import os
 import logging
 import requests
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ConversationHandler, ContextTypes, filters
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ConversationHandler,
+    ContextTypes,
+    filters,
+)
 
 API_URL = os.getenv("API_URL", "http://localhost:5000")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -13,12 +20,37 @@ logger = logging.getLogger(__name__)
 # Conversation states
 LOGIN_EMAIL, LOGIN_PASSWORD = range(2)
 
-# In-memory store for user tokens
+# In-memory store for user tokens and scheduled jobs
 user_tokens = {}
+user_jobs = {}
+
+
+async def poll_notifications(context: ContextTypes.DEFAULT_TYPE):
+    chat_id = context.job.data["chat_id"]
+    token = user_tokens.get(chat_id)
+    if not token:
+        return
+    try:
+        r = requests.get(
+            f"{API_URL}/api/notifications/?unread=1",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10,
+        )
+        if r.status_code == 200:
+            for n in r.json():
+                message = n.get("message") or n.get("event")
+                await context.bot.send_message(chat_id=chat_id, text=message)
+                requests.put(
+                    f"{API_URL}/api/notifications/{n['id']}/view",
+                    headers={"Authorization": f"Bearer {token}"},
+                    timeout=10,
+                )
+    except Exception:
+        logger.exception("Failed to poll notifications")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Добро пожаловать! Используйте /login для входа и /notifications для получения уведомлений."
+        "Добро пожаловать! Используйте /login для входа. После входа уведомления будут приходить автоматически."
     )
 
 async def login_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -42,7 +74,20 @@ async def login_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if r.status_code == 200:
             tokens = r.json()
             user_tokens[update.effective_user.id] = tokens['access_token']
-            await update.message.reply_text("Успешный вход!")
+            await update.message.reply_text("Успешный вход! Теперь уведомления будут приходить автоматически.")
+            # start background polling for this user
+            if context.job_queue:
+                # cancel existing job if any
+                old_job = user_jobs.get(update.effective_user.id)
+                if old_job:
+                    old_job.schedule_removal()
+                job = context.job_queue.run_repeating(
+                    poll_notifications,
+                    interval=60,
+                    first=0,
+                    data={'chat_id': update.effective_user.id},
+                )
+                user_jobs[update.effective_user.id] = job
         else:
             await update.message.reply_text("Ошибка авторизации")
     except Exception as e:
@@ -70,7 +115,7 @@ async def notifications(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not notifs:
                 await update.message.reply_text("Нет новых уведомлений")
             else:
-                messages = [n['event'] for n in notifs]
+                messages = [n.get('message') or n['event'] for n in notifs]
                 await update.message.reply_text("\n".join(messages))
                 # Mark notifications as viewed
                 for n in notifs:
