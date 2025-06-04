@@ -21,6 +21,15 @@
     <small class="text-muted">Оставьте пустым, если не хотите менять пароль.</small>
   </div>
 
+  <div class="form-check mb-2">
+    {{ form.notify_invites(class="form-check-input") }}
+    {{ form.notify_invites.label(class="form-check-label") }}
+  </div>
+  <div class="form-check mb-3">
+    {{ form.notify_residents(class="form-check-input") }}
+    {{ form.notify_residents.label(class="form-check-label") }}
+  </div>
+
   {{ form.submit(class="btn btn-primary") }}
 </form>
 <a href="{{ url_for('web.addresses') }}" class="btn btn-link mt-3">← Назад</a>

@@ -13,6 +13,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token
 from app.models.enums import ResidentRole
 from app.models.invitation import Invitation
+from app.models.notification import Notification
 from flask import abort
 from flask import current_app
 from app.utils.navigation import preserve_back_url
@@ -321,20 +322,28 @@ def decline_invitation(id):
         logging.error(f"Ошибка при отклонении приглашения {id}: {str(e)}")
         flash("Ошибка при отклонении приглашения", "danger")
 
-    return redirect(url_for("web.my_invitations"))
+    return redirect(url_for("web.notifications"))
 
 
-@web_bp.route("/my-invitations")
-def my_invitations():
+@web_bp.route("/notifications")
+def notifications():
     if "user_id" not in session:
         return redirect(url_for("web.login"))
 
     user = User.query.get(session["user_id"])
+    notes = Notification.query.filter_by(user_id=user.id).order_by(Notification.sent_at.desc()).all()
+    return render_template("notifications.html", notes=notes)
 
-    # Найти приглашения, которые совпадают по email и не использованы
-    invites = Invitation.query.filter_by(email=user.email, used=False).all()
 
-    return render_template("my_invitations.html", invites=invites)
+@web_bp.route("/notification/<int:id>/view", methods=["POST"])
+def mark_notification(id):
+    if "user_id" not in session:
+        return redirect(url_for("web.login"))
+
+    note = Notification.query.filter_by(id=id, user_id=session["user_id"]).first_or_404()
+    note.viewed = True
+    db.session.commit()
+    return redirect(url_for("web.notifications"))
 
 
 @web_bp.route("/admin", methods=["GET", "POST"])
@@ -459,6 +468,8 @@ def profile():
     if form.validate_on_submit():
         user.name = form.name.data
         user.email = form.email.data
+        user.notify_invites = form.notify_invites.data
+        user.notify_residents = form.notify_residents.data
 
         if form.password.data:
             user.password = generate_password_hash(form.password.data)
@@ -595,3 +606,12 @@ def delete_address(address_id):
 
     flash("Адрес удалён.", "success")
     return redirect(url_for("web.addresses", mode="all"))
+
+
+@web_bp.app_context_processor
+def inject_notification_count():
+    if session.get("user_id"):
+        count = Notification.query.filter_by(user_id=session["user_id"], viewed=False).count()
+    else:
+        count = 0
+    return {"notification_count": count}

@@ -20,8 +20,12 @@
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('web.join_address') }}">Присоединиться</a>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('web.my_invitations') }}">Мои приглашения</a>
+                <li class="nav-item position-relative">
+                    <a class="nav-link" href="{{ url_for('web.notifications') }}">🔔
+                        {% if notification_count %}
+                        <span class="badge bg-danger">{{ notification_count }}</span>
+                        {% endif %}
+                    </a>
                 </li>
                 {% endif %}
             </ul>

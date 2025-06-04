@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField
+from wtforms import StringField, PasswordField, SubmitField, BooleanField
 from wtforms.fields import EmailField
 from wtforms.validators import DataRequired, Email, Length, Optional
 
@@ -33,4 +33,6 @@ class ProfileForm(FlaskForm):
     name = StringField("Имя", validators=[DataRequired(), Length(min=2, max=64)])
     email = StringField("Email", validators=[DataRequired(), Email()])
     password = PasswordField("Новый пароль (необязательно)", validators=[Optional(), Length(min=6)])
+    notify_invites = BooleanField("Уведомлять о приглашениях")
+    notify_residents = BooleanField("Уведомлять об изменениях резидентов")
     submit = SubmitField("Сохранить изменения")

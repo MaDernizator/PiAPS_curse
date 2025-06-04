@@ -6,6 +6,7 @@ from app.models.address import Address
 from app.models.user_address import UserAddress
 from app.models.enums import ResidentRole
 from app.models.enums import UserRole
+from app.services.notification_service import NotificationService
 
 class InvitationService:
 
@@ -50,6 +51,8 @@ class InvitationService:
         db.session.add(invitation)
         db.session.commit()
 
+        NotificationService.notify_invitation(target_user.email, address_id)
+
         return {"invitation_code": invitation.code}
 
     @staticmethod
@@ -75,3 +78,9 @@ class InvitationService:
         db.session.add(user_address)
         db.session.delete(invitation)
         db.session.commit()
+
+        NotificationService.notify_resident_change(
+            invitation.address_id,
+            "resident_added",
+            exclude_user_id=user_id
+        )
