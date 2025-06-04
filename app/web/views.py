@@ -13,6 +13,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token
 from app.models.enums import ResidentRole
 from app.models.invitation import Invitation
+from app.models.notification import Notification
+from app.services.notification_service import NotificationService
 from flask import abort
 from flask import current_app
 from app.utils.navigation import preserve_back_url
@@ -192,6 +194,11 @@ def update_resident_role(resident_id):
     new_role = request.form["role"]
     ua.role = ResidentRole[new_role]
     db.session.commit()
+    NotificationService.notify_resident_change(
+        address_id,
+        "role_changed",
+        exclude_user_id=ua.user_id,
+    )
 
     flash("Роль обновлена", "success")
     return redirect(url_for("web.address_residents", address_id=address_id))
@@ -212,6 +219,11 @@ def remove_resident(resident_id):
     # 💡 Разрешим даже удаление себя, если админ
     db.session.delete(ua)
     db.session.commit()
+    NotificationService.notify_resident_change(
+        address_id,
+        "resident_removed",
+        exclude_user_id=ua.user_id,
+    )
 
     flash("Жилец удалён", "info")
     return redirect(url_for("web.address_residents", address_id=address_id))
@@ -252,6 +264,7 @@ def invite_user(address_id):
         try:
             db.session.add(invitation)
             db.session.commit()
+            NotificationService.notify_invitation(form.email.data, address.id, session["user_id"], invitation.id)
             logging.info(f"Пользователь {form.email.data} приглашён к адресу {address.id}")
             flash("Приглашение отправлено", "success")
             return redirect(url_for("web.address_residents", address_id=address.id))
@@ -293,6 +306,11 @@ def accept_invitation():
         invitation.used = True
         db.session.add(ua)
         db.session.commit()
+        NotificationService.notify_resident_change(
+            invitation.address_id,
+            "resident_added",
+            exclude_user_id=session["user_id"],
+        )
 
         flash("Вы успешно присоединились", "success")
         return redirect(url_for("web.addresses"))
@@ -321,20 +339,106 @@ def decline_invitation(id):
         logging.error(f"Ошибка при отклонении приглашения {id}: {str(e)}")
         flash("Ошибка при отклонении приглашения", "danger")
 
-    return redirect(url_for("web.my_invitations"))
+    return redirect(url_for("web.notifications"))
 
 
-@web_bp.route("/my-invitations")
-def my_invitations():
+@web_bp.route("/notifications")
+def notifications():
     if "user_id" not in session:
         return redirect(url_for("web.login"))
 
     user = User.query.get(session["user_id"])
+    notes = Notification.query.filter_by(user_id=user.id).order_by(Notification.sent_at.desc()).all()
 
-    # Найти приглашения, которые совпадают по email и не использованы
-    invites = Invitation.query.filter_by(email=user.email, used=False).all()
+    processed = []
+    for n in notes:
+        parts = n.event.split(":")
+        message = n.event
+        note_type = None
+        extra = {}
+        if parts[0] == "invited" and len(parts) == 4:
+            addr = Address.query.get(int(parts[1]))
+            inviter = User.query.get(int(parts[2]))
+            message = f"{inviter.name} пригласил вас на адрес {addr.street} {addr.building_number}, кв. {addr.unit_number}"
+            note_type = "invitation"
+            extra["note_id"] = n.id
+        elif parts[0] in ["resident_added", "resident_removed", "role_changed"] and len(parts) >= 2:
+            addr = Address.query.get(int(parts[1]))
+            changes = {
+                "resident_added": "добавлен новый жилец",
+                "resident_removed": "жилец удалён",
+                "role_changed": "изменена роль жильца",
+            }
+            message = f"На адресе {addr.street} {addr.building_number}, кв. {addr.unit_number} {changes.get(parts[0], '')}"
+            note_type = "resident"
+        processed.append({"note": n, "message": message, "type": note_type, "extra": extra})
 
-    return render_template("my_invitations.html", invites=invites)
+    return render_template("notifications.html", notes=processed)
+
+
+@web_bp.route("/notification/<int:id>/view", methods=["POST"])
+def mark_notification(id):
+    if "user_id" not in session:
+        return redirect(url_for("web.login"))
+
+    note = Notification.query.filter_by(id=id, user_id=session["user_id"]).first_or_404()
+    note.viewed = True
+    db.session.commit()
+    return redirect(url_for("web.notifications"))
+
+
+@web_bp.route("/notification/<int:id>/accept", methods=["POST"])
+def accept_invite_notification(id):
+    if "user_id" not in session:
+        return redirect(url_for("web.login"))
+
+    note = Notification.query.filter_by(id=id, user_id=session["user_id"]).first_or_404()
+    parts = note.event.split(":")
+    if parts[0] != "invited" or len(parts) != 4:
+        abort(400)
+
+    invitation = Invitation.query.get_or_404(int(parts[3]))
+    if invitation.email != User.query.get(session["user_id"]).email or invitation.used:
+        flash("Приглашение не найдено или уже использовано", "danger")
+        note.viewed = True
+        db.session.commit()
+        return redirect(url_for("web.notifications"))
+
+    exists = UserAddress.query.filter_by(user_id=session["user_id"], address_id=invitation.address_id).first()
+    if exists:
+        flash("Вы уже добавлены к этому адресу", "warning")
+    else:
+        ua = UserAddress(user_id=session["user_id"], address_id=invitation.address_id, role=ResidentRole.GUEST)
+        invitation.used = True
+        db.session.add(ua)
+        db.session.commit()
+        NotificationService.notify_resident_change(invitation.address_id, "resident_added", exclude_user_id=session["user_id"])
+        flash("Вы успешно присоединились", "success")
+
+    note.viewed = True
+    db.session.commit()
+    return redirect(url_for("web.notifications"))
+
+
+@web_bp.route("/notification/<int:id>/decline", methods=["POST"])
+def decline_invite_notification(id):
+    if "user_id" not in session:
+        return redirect(url_for("web.login"))
+
+    note = Notification.query.filter_by(id=id, user_id=session["user_id"]).first_or_404()
+    parts = note.event.split(":")
+    if parts[0] != "invited" or len(parts) != 4:
+        abort(400)
+
+    invitation = Invitation.query.get_or_404(int(parts[3]))
+    if invitation.email != User.query.get(session["user_id"]).email:
+        abort(403)
+
+    db.session.delete(invitation)
+    note.viewed = True
+    db.session.commit()
+    flash("Приглашение отклонено", "info")
+    return redirect(url_for("web.notifications"))
 
 
 @web_bp.route("/admin", methods=["GET", "POST"])
@@ -459,6 +563,8 @@ def profile():
     if form.validate_on_submit():
         user.name = form.name.data
         user.email = form.email.data
+        user.notify_invites = form.notify_invites.data
+        user.notify_residents = form.notify_residents.data
 
         if form.password.data:
             user.password = generate_password_hash(form.password.data)
@@ -595,3 +701,12 @@ def delete_address(address_id):
 
     flash("Адрес удалён.", "success")
     return redirect(url_for("web.addresses", mode="all"))
+
+
+@web_bp.app_context_processor
+def inject_notification_count():
+    if session.get("user_id"):
+        count = Notification.query.filter_by(user_id=session["user_id"], viewed=False).count()
+    else:
+        count = 0
+    return {"notification_count": count}

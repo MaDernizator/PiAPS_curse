@@ -1,6 +1,7 @@
 from app.main.extensions import db
 from app.models.user_address import UserAddress
 from app.models.enums import ResidentRole
+from app.services.notification_service import NotificationService
 
 class ResidentService:
 
@@ -44,6 +45,12 @@ class ResidentService:
         db.session.delete(target)
         db.session.commit()
 
+        NotificationService.notify_resident_change(
+            address_id,
+            "resident_removed",
+            exclude_user_id=target_user_id,
+        )
+
     @staticmethod
     def update_role(user_id, address_id, target_user_id, new_role):
         ResidentService._check_owner(user_id, address_id)
@@ -58,4 +65,10 @@ class ResidentService:
 
         target.role = ResidentRole[new_role]
         db.session.commit()
+
+        NotificationService.notify_resident_change(
+            address_id,
+            "role_changed",
+            exclude_user_id=target_user_id,
+        )
 #TODO сейчас может быть два овнера, подумать
