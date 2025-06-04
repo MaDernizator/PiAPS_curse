@@ -20,4 +20,5 @@ if [ -n "$TELEGRAM_TOKEN" ]; then
 fi
 
 echo "🚀 Запуск сервера"
-exec flask run --host=0.0.0.0 --port=5000
+# Disable Flask reloader so the bot doesn't start twice
+exec flask run --no-reload --host=0.0.0.0 --port=5000
