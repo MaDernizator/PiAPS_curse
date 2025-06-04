@@ -85,7 +85,7 @@ async def notifications(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.exception("Failed to fetch notifications")
         await update.message.reply_text("Ошибка подключения к серверу")
 
-async def main():
+def main():
     if not TELEGRAM_TOKEN:
         raise RuntimeError("TELEGRAM_TOKEN not set")
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
@@ -103,8 +103,7 @@ async def main():
     application.add_handler(conv_handler)
     application.add_handler(CommandHandler('notifications', notifications))
 
-    await application.run_polling()
+    application.run_polling()
 
 if __name__ == '__main__':
-    import asyncio
-    asyncio.run(main())
+    main()
