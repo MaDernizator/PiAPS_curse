@@ -510,22 +510,31 @@ def admin_dashboard():
 
     form = AdminAddressForm()
     if form.validate_on_submit():
-        address = Address(
-            street=form.street.data,
-            building_number=form.building.data,
-            unit_number=form.unit.data,
-            owner_code=form.code.data
-        )
-        try:
-            db.session.add(address)
-            db.session.commit()
-            flash("Адрес создан", "success")
-            logging.info(f"Админ создал адрес: {form.street.data}, {form.building.data}, {form.unit.data}")
-            return redirect(url_for("web.addresses", mode="all"))
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            flash("Ошибка при создании адреса", "danger")
-            logging.error(f"Ошибка создания адреса: {str(e)}")
+        used_code = f"USED_{form.code.data}"
+        existing = Address.query.filter(
+            (Address.owner_code == form.code.data) | (Address.owner_code == used_code)
+        ).first()
+        if existing:
+            flash("Код уже используется", "danger")
+        else:
+            address = Address(
+                street=form.street.data,
+                building_number=form.building.data,
+                unit_number=form.unit.data,
+                owner_code=form.code.data
+            )
+            try:
+                db.session.add(address)
+                db.session.commit()
+                flash("Адрес создан", "success")
+                logging.info(
+                    f"Админ создал адрес: {form.street.data}, {form.building.data}, {form.unit.data}"
+                )
+                return redirect(url_for("web.addresses", mode="all"))
+            except SQLAlchemyError as e:
+                db.session.rollback()
+                flash("Ошибка при создании адреса", "danger")
+                logging.error(f"Ошибка создания адреса: {str(e)}")
 
     addresses = Address.query.all()
     return render_template("admin_dashboard.html", addresses=addresses, form=form)
