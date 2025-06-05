@@ -49,13 +49,15 @@ def _format_message(event: str) -> str:
                 f"{inviter.name} пригласил вас на адрес "
                 f"{addr.street} {addr.building_number}, кв. {addr.unit_number}"
             )
-    elif parts[0] in ["resident_added", "resident_removed", "role_changed"] and len(parts) >= 2:
+    elif parts[0] in ["resident_added", "resident_removed", "role_changed", "resident_blocked", "resident_unblocked"] and len(parts) >= 2:
         addr = Address.query.get(int(parts[1]))
         if addr:
             changes = {
                 "resident_added": "добавлен новый жилец",
                 "resident_removed": "жилец удалён",
                 "role_changed": "изменена роль жильца",
+                "resident_blocked": "жилец заблокирован",
+                "resident_unblocked": "жилец разблокирован",
             }
             return (
                 f"На адресе {addr.street} {addr.building_number}, кв. {addr.unit_number} "
@@ -229,6 +231,30 @@ def update_resident_role(resident_id):
     return redirect(url_for("web.address_residents", address_id=address_id))
 
 
+@web_bp.route("/resident/<int:resident_id>/toggle-block", methods=["POST"])
+def toggle_resident_block(resident_id):
+    if "user_id" not in session:
+        return redirect(url_for("web.login"))
+
+    ua = UserAddress.query.get_or_404(resident_id)
+    address_id = ua.address_id
+
+    if not has_full_control(session["user_id"], address_id):
+        flash("Недостаточно прав", "danger")
+        return redirect(url_for("web.addresses"))
+
+    ua.is_blocked = not getattr(ua, "is_blocked", False)
+    db.session.commit()
+    NotificationService.notify_resident_change(
+        address_id,
+        "resident_blocked" if ua.is_blocked else "resident_unblocked",
+        exclude_user_id=ua.user_id,
+    )
+
+    flash("Жилец заблокирован" if ua.is_blocked else "Жилец разблокирован", "info")
+    return redirect(url_for("web.address_residents", address_id=address_id))
+
+
 @web_bp.route("/resident/<int:resident_id>/remove", methods=["POST"])
 def remove_resident(resident_id):
     if "user_id" not in session:
@@ -399,12 +425,14 @@ def notifications():
                 note_type = "invitation"
                 extra["note_id"] = n.id
                 show = True
-        elif not n.viewed and parts[0] in ["resident_added", "resident_removed", "role_changed"] and len(parts) >= 2:
+        elif not n.viewed and parts[0] in ["resident_added", "resident_removed", "role_changed", "resident_blocked", "resident_unblocked"] and len(parts) >= 2:
             addr = Address.query.get(int(parts[1]))
             changes = {
                 "resident_added": "добавлен новый жилец",
                 "resident_removed": "жилец удалён",
                 "role_changed": "изменена роль жильца",
+                "resident_blocked": "жилец заблокирован",
+                "resident_unblocked": "жилец разблокирован",
             }
             message = (
                 f"На адресе {addr.street} {addr.building_number}, кв. {addr.unit_number} "

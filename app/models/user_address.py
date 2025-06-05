@@ -10,6 +10,7 @@ class UserAddress(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     address_id = db.Column(db.Integer, db.ForeignKey("addresses.id"), nullable=False)
     role = db.Column(Enum(ResidentRole), nullable=False, default=ResidentRole.RESIDENT)
+    is_blocked = db.Column(db.Boolean, default=False)
 
     user = relationship("User", back_populates="addresses")
     address = relationship("Address", back_populates="residents")
