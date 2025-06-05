@@ -22,7 +22,10 @@ class AdminAddressForm(FlaskForm):
     street = StringField("Улица", validators=[DataRequired()])
     building = StringField("Дом", validators=[DataRequired()])
     unit = StringField("Квартира", validators=[DataRequired()])
-    code = StringField("Уникальный код", validators=[DataRequired(), Length(max=64)])
+    code = StringField(
+        "Уникальный код",
+        validators=[DataRequired(), Length(min=6, max=64)]
+    )
     submit = SubmitField("Создать")
 
     def validate_code(self, field):
