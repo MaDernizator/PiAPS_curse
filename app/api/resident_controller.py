@@ -16,13 +16,13 @@ def list_residents(address_id):
         return jsonify({"error": str(e)}), 403
 
 
-@resident_bp.route("/<int:address_id>/<int:target_user_id>/block", methods=["PUT"])
+@resident_bp.route("/<int:address_id>/<int:target_user_id>/toggle-block", methods=["PUT"])
 @jwt_required()
-def block_resident(address_id, target_user_id):
+def toggle_block_resident(address_id, target_user_id):
     user_id = int(get_jwt_identity())
     try:
         ResidentService.block_resident(user_id, address_id, target_user_id)
-        return jsonify({"message": "Resident blocked"}), 200
+        return jsonify({"message": "Resident block toggled"}), 200
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 

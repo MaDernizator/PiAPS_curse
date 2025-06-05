@@ -25,7 +25,8 @@ class ResidentService:
                 "user_id": r.user.id,
                 "name": r.user.name,
                 "email": r.user.email,
-                "role": r.role.value
+                "role": r.role.value,
+                "is_blocked": getattr(r, "is_blocked", False),
             }
             for r in residents
         ]
@@ -42,12 +43,12 @@ class ResidentService:
         if not target:
             raise ValueError("User not found in this address")
 
-        db.session.delete(target)
+        target.is_blocked = not getattr(target, "is_blocked", False)
         db.session.commit()
 
         NotificationService.notify_resident_change(
             address_id,
-            "resident_removed",
+            "resident_blocked" if target.is_blocked else "resident_unblocked",
             exclude_user_id=target_user_id,
         )
 
