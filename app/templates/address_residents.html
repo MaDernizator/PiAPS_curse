@@ -21,7 +21,12 @@
     <tr>
       <td>{{ r.user.name }}</td>
       <td>{{ r.user.email }}</td>
-      <td>{{ r.role.value }}</td>
+      <td>
+        {{ r.role.value }}
+        {% if r.is_blocked %}
+        <span class="badge bg-danger">Блок</span>
+        {% endif %}
+      </td>
       {% if user_role == "ADMIN" or user_role == 'OWNER' %}
       <td>
         {% if r.user.id != current_user_id %}
@@ -33,8 +38,10 @@
           </select>
           <button class="btn btn-sm btn-primary">Сменить</button>
         </form>
-        <form method="POST" action="{{ url_for('web.remove_resident', resident_id=r.id) }}" class="d-inline ms-2">
-          <button class="btn btn-sm btn-danger">Удалить</button>
+        <form method="POST" action="{{ url_for('web.toggle_resident_block', resident_id=r.id) }}" class="d-inline ms-2">
+          <button class="btn btn-sm btn-{{ 'danger' if not r.is_blocked else 'success' }}">
+            {% if r.is_blocked %}Разблокировать{% else %}Заблокировать{% endif %}
+          </button>
         </form>
         {% endif %}
       </td>
